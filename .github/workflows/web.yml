@@ -1,0 +1,141 @@
+name: Web / GitHub Pages
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openrct2-web-pages
+  cancel-in-progress: true
+
+jobs:
+  graphics:
+    name: Build web graphics data
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download graphics compiler
+        run: |
+          curl -Lo tools.tar.gz https://github.com/OpenRCT2/libsawyer/releases/download/v1.4.0/libsawyer-tools-linux-x64.tar.gz
+          mkdir -p "$GITHUB_WORKSPACE/bin"
+          tar -C "$GITHUB_WORKSPACE/bin" -xf tools.tar.gz
+          echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"
+
+      - name: Build graphics data
+        run: scripts/build-graphics-dat "$PWD"
+
+      - name: Upload graphics data
+        uses: actions/upload-artifact@v6
+        with:
+          name: openrct2-web-graphics
+          path: |
+            g2.dat
+            palettes.dat
+            fonts.dat
+            tracks.dat
+          if-no-files-found: error
+
+  wasm:
+    name: Build OpenRCT2 WebAssembly
+    needs: graphics
+    runs-on: ubuntu-24.04
+    container: ghcr.io/openrct2/openrct2-build:26-emscripten
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Mark checkout safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Download graphics data
+        uses: actions/download-artifact@v7
+        with:
+          name: openrct2-web-graphics
+          path: web-graphics
+
+      - name: Build WebAssembly
+        run: |
+          . scripts/setenv
+          build-emscripten
+
+      - name: Assemble browser assets
+        run: |
+          set -euxo pipefail
+
+          cp web-graphics/g2.dat build/g2.dat
+          cp web-graphics/palettes.dat build/palettes.dat
+          cp web-graphics/fonts.dat build/fonts.dat
+          cp web-graphics/tracks.dat build/tracks.dat
+
+          STAGE="$GITHUB_WORKSPACE/build/web-install"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          # Use OpenRCT2's normal install rules to assemble the data directory.
+          # This also downloads the matching objects, title sequences, OpenSFX,
+          # and OpenMusic versions declared by assets.json.
+          DESTDIR="$STAGE" cmake --install build
+
+          DATA_DIR="$(find "$STAGE" -type d -path '*/share/openrct2' -print -quit)"
+          test -n "$DATA_DIR"
+          test -f "$DATA_DIR/g2.dat"
+
+          rm -f build/www/assets.zip
+          (
+            cd "$DATA_DIR"
+            zip -9 -r "$GITHUB_WORKSPACE/build/www/assets.zip" .
+          )
+
+          touch build/www/.nojekyll
+          test -f build/www/index.html
+          test -f build/www/index.js
+          test -f build/www/coi-serviceworker.js
+          test -f build/www/openrct2.zip
+          test -f build/www/assets.zip
+          ls -lh build/www
+
+      - name: Upload web site
+        uses: actions/upload-artifact@v6
+        with:
+          name: openrct2-web-site
+          path: build/www
+          include-hidden-files: true
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy GitHub Pages
+    needs: wasm
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download web site
+        uses: actions/download-artifact@v7
+        with:
+          name: openrct2-web-site
+          path: _site
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
