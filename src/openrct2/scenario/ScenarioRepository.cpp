@@ -26,6 +26,7 @@
 #include "../platform/Platform.h"
 #include "../rct12/CSStringConverter.h"
 #include "../rct2/RCT2.h"
+#include "BuiltinSixFlagsNewEngland.h"
 #include "ScenarioCategory.h"
 #include "ScenarioSources.h"
 
@@ -297,6 +298,8 @@ public:
         {
             AddScenario(scenario);
         }
+
+        AddScenario(OpenRCT2::Scenario::CreateBuiltinSixFlagsNewEnglandIndexEntry());
 
         // Sort the scenarios and load the highscores
         Sort();

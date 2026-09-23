@@ -67,6 +67,7 @@
 #include "profiling/Profiling.h"
 #include "rct2/RCT2.h"
 #include "ride/TrackDesignRepository.h"
+#include "scenario/BuiltinSixFlagsNewEngland.h"
 #include "scenario/Scenario.h"
 #include "scenario/ScenarioRepository.h"
 #include "scenes/SceneManager.h"
@@ -683,6 +684,11 @@ namespace OpenRCT2
         bool LoadParkFromFile(const u8string& path, bool loadTitleScreenOnFail = false, bool asScenario = false) final override
         {
             LOG_VERBOSE("Context::LoadParkFromFile(%s)", path.c_str());
+
+            if (OpenRCT2::Scenario::IsBuiltinSixFlagsNewEnglandPath(path))
+            {
+                return OpenRCT2::Scenario::LoadBuiltinSixFlagsNewEnglandScenario();
+            }
 
             struct CrashAdditionalFileRegistration
             {
