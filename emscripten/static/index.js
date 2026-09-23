@@ -89,6 +89,7 @@
     Module.FS.mount(Module.FS.filesystems.IDBFS, {autoPersist: true}, '/OpenRCT2');
 
     await new Promise(res => Module.FS.syncfs(true, res));
+    repairWebDisplayConfig();
 
     const assetsOK = await updateAssets();
     if (!assetsOK)
@@ -146,16 +147,70 @@
     Module.callMain(["--user-data-path=/persistent/", "--openrct2-data-path=/OpenRCT2/"]);
 })();
 
+function repairWebDisplayConfig() {
+    const path = "/persistent/config.ini";
+    let text = "";
+    try {
+        text = Module.FS.readFile(path, {encoding: "utf8"});
+    } catch(e) {}
+
+    const sectionMatch = /^\s*\[general\]\s*$/im.exec(text);
+    if (!sectionMatch)
+    {
+        if (text.length > 0 && !text.endsWith("\n")) text += "\n";
+        text += "[general]\nwindow_scale = 1.000000\ninfer_display_dpi = false\n";
+        Module.FS.writeFile(path, text);
+        console.log("Created browser-safe display config");
+        return;
+    }
+
+    const sectionStart = sectionMatch.index;
+    const bodyStart = sectionStart + sectionMatch[0].length;
+    const nextSectionMatch = /^\s*\[[^\]]+\]\s*$/im.exec(text.substring(bodyStart));
+    const sectionEnd = nextSectionMatch ? bodyStart + nextSectionMatch.index : text.length;
+    let section = text.substring(sectionStart, sectionEnd);
+
+    const scaleMatch = /^\s*window_scale\s*=\s*([^\r\n]+)\s*$/im.exec(section);
+    const scale = scaleMatch ? Number.parseFloat(scaleMatch[1]) : NaN;
+    if (!Number.isFinite(scale) || scale < 0.5 || scale > 5.0)
+    {
+        if (scaleMatch)
+        {
+            section = section.replace(scaleMatch[0], "window_scale = 1.000000");
+        }
+        else
+        {
+            section += "\nwindow_scale = 1.000000";
+        }
+        console.log("Repaired invalid browser window scale");
+    }
+
+    const dpiMatch = /^\s*infer_display_dpi\s*=.*$/im.exec(section);
+    if (dpiMatch)
+    {
+        section = section.replace(dpiMatch[0], "infer_display_dpi = false");
+    }
+    else
+    {
+        section += "\ninfer_display_dpi = false";
+    }
+
+    text = text.substring(0, sectionStart) + section + text.substring(sectionEnd);
+    Module.FS.writeFile(path, text);
+}
+
 async function updateAssets() {
     let currentVersion = "";
-    try {
+    try
+    {
         currentVersion = Module.FS.readFile("/OpenRCT2/version", {encoding: "utf8"});
         console.log("Found asset version", currentVersion);
     } catch(e) {
         console.log("No asset version found");
     };
     let assetsVersion = "DEBUG";
-    try {
+    try
+    {
         assetsVersion = Module.ccall("GetVersion", "string");
     } catch(e) {
         console.warn("Could not call 'GetVersion'! Is it added to EXPORTED_FUNCTIONS? Is ccall added to EXPORTED_RUNTIME_METHODS?");
@@ -192,7 +247,8 @@ async function updateAssets() {
 async function extractZip(data, checkZip) {
     let zip = new JSZip();
     let contents;
-    try {
+    try
+    {
         contents = await zip.loadAsync(data);
     } catch(e) {
         if (typeof checkZip === "function")
@@ -212,7 +268,8 @@ async function extractZip(data, checkZip) {
         const entry = contents.files[k];
         if (entry.dir)
         {
-            try {
+            try
+            {
                 Module.FS.mkdir(base+k);
             } catch(e) {}
         }
@@ -227,14 +284,16 @@ async function clearDatabase(dir) {
     await new Promise(res => Module.FS.syncfs(false, res));
     const processFolder = (path) => {
         let contents;
-        try {
+        try
+        {
             contents = Module.FS.readdir(path);
         } catch(e) {
             return;
         }
         contents.forEach((entry) => {
             if ([".", ".."].includes(entry)) return;
-            try {
+            try
+            {
                 Module.FS.readFile(path + entry);
                 Module.FS.unlink(path + entry);
             } catch(e) {
@@ -242,7 +301,8 @@ async function clearDatabase(dir) {
             }
         })
         if (path === dir) return;
-        try {
+        try
+        {
             Module.FS.rmdir(path, {recursive: true});
         } catch(e) {
             console.log("Could not remove:", path);
@@ -252,7 +312,8 @@ async function clearDatabase(dir) {
     await new Promise(res => Module.FS.syncfs(false, res));
 }
 function fileExists(path) {
-    try {
+    try
+    {
         Module.FS.readFile(path);
         return true;
     } catch(e) {};
