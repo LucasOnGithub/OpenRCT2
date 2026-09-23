@@ -1,4 +1,5 @@
 name: Web / GitHub Pages
+# Republish the WebAssembly site after switching Pages to GitHub Actions.
 
 on:
   push:
