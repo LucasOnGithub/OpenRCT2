@@ -19,6 +19,7 @@
 #include "../localisation/LocalisationService.h"
 #include "../object/ObjectRepository.h"
 #include "../ride/RideData.h"
+#include "BuiltinTrackDesigns.h"
 #include "TrackDesign.h"
 
 #include <memory>
@@ -188,7 +189,7 @@ public:
             if (entryIsNotSeparate || String::iequals(item.ObjectEntry, entry))
             {
                 TrackDesignFileRef ref;
-                ref.name = GetNameFromTrackPath(item.Path);
+                ref.name = item.Name;
                 ref.path = item.Path;
                 refs.push_back(ref);
             }
@@ -205,6 +206,14 @@ public:
         {
             _items.push_back(td);
         }
+
+        TrackRepositoryItem euroFighter{};
+        euroFighter.Name = "Euro-Fighter";
+        euroFighter.Path = std::string(kBuiltinEuroFighterTrackDesignPath);
+        euroFighter.RideType = kBuiltinEuroFighterRideType;
+        euroFighter.ObjectEntry = "BMVD    ";
+        euroFighter.flags.set(TrackRepoItemFlag::readOnly);
+        _items.push_back(std::move(euroFighter));
 
         SortItems();
     }

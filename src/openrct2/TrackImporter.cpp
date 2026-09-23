@@ -11,6 +11,7 @@
 
 #include "core/Path.hpp"
 #include "core/String.hpp"
+#include "ride/BuiltinTrackDesigns.h"
 
 #include <memory>
 
@@ -18,6 +19,11 @@ namespace OpenRCT2::TrackImporter
 {
     std::unique_ptr<ITrackImporter> Create(const std::string& hintPath)
     {
+        if (IsBuiltinTrackDesignPath(hintPath))
+        {
+            return CreateBuiltinTrackDesignImporter(hintPath);
+        }
+
         std::unique_ptr<ITrackImporter> trackImporter;
         std::string extension = Path::GetExtension(hintPath);
         if (ExtensionIsRCT1(extension))
